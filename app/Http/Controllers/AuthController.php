@@ -18,7 +18,7 @@ class AuthController extends Controller
         // Validate the request data
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:255',
+            'phone' => 'required|string|regex:/^0\d{8,9}$/',
             'role_id' => 'required|exists:roles,id',
             'village_id' => 'required|exists:villages,id',
             'password' => 'required|string|min:6', // Add minimum password length
@@ -47,7 +47,7 @@ class AuthController extends Controller
     {
         // Validate the request data
         $request->validate([
-            'phone' => 'required|string',
+            'phone' => 'required|string|regex:/^0\d{8,9}$/',
             'password' => 'required|string',
         ]);
 
@@ -58,7 +58,7 @@ class AuthController extends Controller
         // Attempt to authenticate the user
         if (Auth::attempt(['phone' => $phone, 'password' => $password])) {
             $user = Auth::user();
-            $token = $user->createToken('salaitapp')->accessToken;
+            $token = $user->createToken('salaitapp', ['*'], now()->addDays(7))->accessToken;
 
             // Return success response with user data and token
             return response()->json([
@@ -104,6 +104,85 @@ class AuthController extends Controller
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
     }
+    public function index($name = null)
+    {
+        if ($name) {
+            $user = User::join('roles', 'roles.id', '=', 'users.role_id')
+                ->join('villages', 'villages.id', '=', 'users.village_id')
+                ->join('communces', 'communces.id', '=', 'villages.communce_id')
+                ->join('districts', 'districts.id', '=', 'communces.district_id')
+                ->join('provinces', 'provinces.id', '=', 'districts.province_id')
+                ->select(
+                    'users.id as user_id',
+                    'users.name as user_name',
+                    'users.phone',
+                    'users.profile_image',
+                    'roles.name as role_name',
+                    'provinces.name as province_name',
+                    'districts.name as district_name',
+                    'communces.name as communce_name',
+                    'villages.name as village_name'
+                )
+                ->where('users.name', 'LIKE', '%' . $name . '%') // Fixed here
+                ->get();
+
+            return response()->json($user);
+        } else {
+            $user = User::join('roles', 'roles.id', '=', 'users.role_id')
+                ->join('villages', 'villages.id', '=', 'users.village_id')
+                ->join('communces', 'communces.id', '=', 'villages.communce_id')
+                ->join('districts', 'districts.id', '=', 'communces.district_id')
+                ->join('provinces', 'provinces.id', '=', 'districts.province_id')
+                ->select(
+                    'users.id as user_id',
+                    'users.name as user_name',
+                    'users.phone',
+                    'users.profile_image',
+                    'roles.name as role_name',
+                    'provinces.name as province_name',
+                    'districts.name as district_name',
+                    'communces.name as communce_name',
+                    'villages.name as village_name'
+                )
+                ->get();
+
+            return response()->json($user);
+        }
+    }
+    public function getuserbyid($id)
+    {
+        try {
+            // No need to use DB::beginTransaction() for a read operation
+            $user = User::join('roles', 'roles.id', '=', 'users.role_id')
+                ->join('villages', 'villages.id', '=', 'users.village_id')
+                ->join('communces', 'communces.id', '=', 'villages.communce_id')
+                ->join('districts', 'districts.id', '=', 'communces.district_id')
+                ->join('provinces', 'provinces.id', '=', 'districts.province_id')
+                ->select(
+                    'users.id as user_id',
+                    'users.name as user_name',
+                    'users.phone',
+                    'users.profile_image',
+                    'roles.name as role_name',
+                    'provinces.name as province_name',
+                    'districts.name as district_name',
+                    'communces.name as communce_name',
+                    'villages.name as village_name'
+                )
+                ->where('users.id', $id) // Fixed here
+                ->first(); // Use first() instead of get() to get a single user
+    
+            if ($user) {
+                return response()->json($user);
+            } else {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    
+
     public function update(Request $request, $id = null)
     {
         // Fetch the user to be updated
@@ -126,12 +205,12 @@ class AuthController extends Controller
         if ($request->hasFile('profile_image')) {
             $image = $request->file('profile_image');
             $name = uniqid() . '.' . $image->extension();
-            $destinationPath = public_path('/profile_images');
+            $destinationPath = public_path('/profile_image');
             $image->move($destinationPath, $name);
 
             // Delete the old image if it exists
-            if ($user->profile_image && file_exists(public_path('profile_images/' . $user->profile_image))) {
-                unlink(public_path('profile_images/' . $user->profile_image));
+            if ($user->profile_image && file_exists(public_path('profile_image/' . $user->profile_image))) {
+                unlink(public_path('profile_image/' . $user->profile_image));
             }
 
             // Add the new image name to the data array
@@ -149,14 +228,63 @@ class AuthController extends Controller
     }
     public function delete($id)
     {
-        // Fetch the user to be deleted
-        $user = User::findOrFail($id); // Corrected method name
+        DB::beginTransaction();
+        try {
+            // Fetch the user to be deleted
+            $user = User::findOrFail($id);
 
-        // Delete the user
-        $user->delete(); // Use delete() instead of destroy()
+            // Check if the user has a profile image
+            if ($user->profile_image) {
+                // Get the path to the image file
+                $imagePath = public_path('profile_image/' . $user->profile_image);
+
+                // Check if the file exists and delete it
+                if (file_exists($imagePath)) {
+                    unlink($imagePath); // Delete the image file
+                }
+            }
+
+            // Delete the user
+            $user->delete();
+
+            DB::commit();
+            return response()->json(['message' => 'User and associated image deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'An error occurred while deleting the user'], 500);
+        }
+    }
+
+    public function changePassword(Request $request)
+    {
+        // Validate the request data
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6',
+        ]);
+
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Verify the current password
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Current password is incorrect'], 401);
+        }
+
+        // Update the user's password
+        $user->password = Hash::make($request->new_password); // Use Hash::make instead of bcrypt
+        $user->save(); // Save the changes to the database
 
         // Return a success response
-        return response()->json(['message' => 'deleted']); // Corrected message
+        return response()->json(['message' => 'Password updated successfully']);
+    }
+    public function logout(Request $request)
+    {
+        // Revoke the user's current access token
+        $request->user()->token()->revoke();
+
+        // Return a success response
+        return response()->json(['message' => 'Logged out successfully']);
     }
 
 }

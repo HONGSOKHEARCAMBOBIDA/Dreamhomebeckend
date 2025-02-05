@@ -1,5 +1,9 @@
 <?php
 
+
+use App\Http\Controllers\CommunceController;
+use App\Http\Controllers\DistrictController;
+use App\Http\Controllers\VillageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DepartmentController;
@@ -13,33 +17,43 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\WharehouseController;
 use App\Http\Controllers\ChecktimeController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\ProvinceController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 Route::post('/login', [AuthController::class, 'login']);
-
+Route::post('/logout',[AuthController::class,'logout'])->middleware('auth:api');
+Route::get('/province',[ProvinceController::class,'index']);
+Route::get('/district/{provinceid}',[DistrictController::class,'index']);
+Route::get('/communce/{districtid}',[CommunceController::class,'index']);
+Route::get('/village/{communceid}',[VillageController::class,'index']);
+Route::get('/getuser/{name?}',[AuthController::class,'index']);
+Route::get('/getuserbyid/{id}',[AuthController::class,'getuserbyid']);
 // Route role has permision
 Route::post('/rolehaspermision', [RolehaspermissionController::class, 'store']);
 Route::get('/rolehaspermision', [RolehaspermissionController::class, 'index']);
 Route::put('/rolehaspermission/{role_id}/{permission_id}', [RolehaspermissionController::class, 'update']);
 Route::delete('/rolehaspermission/{role_id}/{permission_id}', [RolehaspermissionController::class, 'delete']);
-
+Route::post('/register', [AuthController::class, 'register']);
+Route::get('/department', [DepartmentController::class, 'index']);
+Route::get('/role/{departmentID}', [RoleController::class, 'getRoleByDepartment']);
 //************************
 Route::middleware(['auth:api', 'permission:add-users'])->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
+    
 });
 Route::middleware(['auth:api', 'permission:view-users'])->group(function () {
     Route::get('/me', [AuthController::class, 'me'])->middleware('auth:api');
 });
 Route::middleware(['auth:api', 'permission:edit-users'])->group(function () {
-    Route::put('/update/{id?}', [AuthController::class, 'update'])->middleware('auth:api');
+    Route::put('/update/{id?}', [AuthController::class, 'update']);
+    Route::put('/changepassword',[AuthController::class,'changePassword']);
 });
 Route::middleware(['auth:api', 'permission:delete-users'])->group(function () {
     Route::delete('/deleteuser/{id}', [AuthController::class, 'delete'])->middleware('auth:api');
 });
 Route::middleware(['auth:api', 'permission:view-department'])->group(function () {
-    Route::get('/department', [DepartmentController::class, 'index']);
+   // Route::get('/department', [DepartmentController::class, 'index']);
 });
 Route::middleware(['auth:api', 'permission:add-department'])->group(function () {
     Route::post('/department', [DepartmentController::class, 'store']);
@@ -51,8 +65,8 @@ Route::middleware(['auth:api', 'permission:delete-department'])->group(function 
     Route::delete('/department/{id}', [DepartmentController::class, 'delete']);
 });
 Route::middleware(['auth:api', 'permission:view-roles'])->group(function () {
-    Route::get('/role/{departmentID?}', [RoleController::class, 'getRoleByDepartment']);
-    Route::get('/role', [RoleController::class, 'index']);
+  //  Route::get('/role/{departmentID?}', [RoleController::class, 'getRoleByDepartment']);
+   // Route::get('/role', [RoleController::class, 'index']);
 });
 Route::middleware(['auth:api', 'permission:add-roles'])->group(function () {
     Route::post('/role', [RoleController::class, 'store']);
