@@ -34,7 +34,7 @@ return new class extends Migration
             // Foreign key to warehouses table
             $table->foreign('wh_id')
                   ->references('id')
-                  ->on('warehouses')
+                  ->on('wharehouses')
                   ->onDelete('cascade');
         });
     }
